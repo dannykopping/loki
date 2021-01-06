@@ -1,14 +1,20 @@
 package log
 
 import (
+	"fmt"
+
 	"github.com/prometheus/prometheus/pkg/labels"
 )
 
 type LineDedupFilter struct {
 	labels     map[string]struct{}
 	inverted   bool
-	hashLookup map[uint64]struct{}
+	hashLookup map[uint64]uint64
+
+	foundLabels map[uint64]*LabelsBuilder
 }
+
+const CountMetaLabel = "__dedup_count__"
 
 func NewLineDedupFilter(labelFilters []string, inverted bool) *LineDedupFilter {
 	// create a map of labelFilters for O(1) lookups instead of O(n)
@@ -20,7 +26,8 @@ func NewLineDedupFilter(labelFilters []string, inverted bool) *LineDedupFilter {
 	return &LineDedupFilter{
 		labels:     filterMap,
 		inverted:   inverted,
-		hashLookup: make(map[uint64]struct{}),
+		hashLookup: make(map[uint64]uint64),
+		foundLabels: make(map[uint64]*LabelsBuilder),
 	}
 }
 
@@ -39,12 +46,23 @@ func (l *LineDedupFilter) Process(line []byte, lbs *LabelsBuilder) ([]byte, bool
 	}
 
 	hash := filterLabels.Hash()
-	if _, found := l.hashLookup[hash]; found {
+	count := l.hashLookup[hash]
+	if count > 0 {
+		count++
+		l.hashLookup[hash] = count
+
 		// don't return the line if the same labels have been seen already (i.e. this is a duplicate)
+		fmt.Printf("dup count: [%v] %d\n", hash, count)
+		l.foundLabels[hash].Set(CountMetaLabel, fmt.Sprintf("%d", count))
 		return nil, false
 	}
 
-	l.hashLookup[hash] = struct{}{}
+	l.hashLookup[hash] = 1
+	l.foundLabels[hash] = lbs
+
+	fmt.Printf("dup found: %v\n", hash)
+	lbs.Set(CountMetaLabel, fmt.Sprintf("%d", l.hashLookup[hash]))
+
 	return line, true
 }
 

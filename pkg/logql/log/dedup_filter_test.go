@@ -1,6 +1,7 @@
 package log
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 
