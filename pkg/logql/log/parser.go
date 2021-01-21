@@ -3,6 +3,8 @@ package log
 import (
 	"errors"
 	"fmt"
+	"github.com/jmespath/go-jmespath"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"io"
 	"regexp"
 	"strings"
@@ -33,10 +35,26 @@ type JSONParser struct {
 	lbs *LabelsBuilder
 }
 
+type JMESPathParser struct {
+	identifier string
+	query string
+	buf []byte // buffer used to build json keys
+	lbs *LabelsBuilder
+}
+
 // NewJSONParser creates a log stage that can parse a json log line and add properties as labels.
 func NewJSONParser() *JSONParser {
 	return &JSONParser{
 		buf: make([]byte, 0, 1024),
+	}
+}
+
+// NewJMESPathParser creates a log stage that can query a json log line using JMESPath
+func NewJMESPathParser(identifier, query string) *JMESPathParser {
+	return &JMESPathParser{
+		buf: make([]byte, 0, 1024),
+		identifier: identifier,
+		query: query,
 	}
 }
 
@@ -52,6 +70,22 @@ func (j *JSONParser) Process(line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 		lbs.SetErr(errJSON)
 		return line, true
 	}
+	return line, true
+}
+
+func (jm *JMESPathParser) Process(line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+	var data interface{}
+	err := jsoniter.Unmarshal(line, &data)
+	if err != nil {
+		return line, true
+	}
+
+	// TODO compile ahead of time to improve perf, add to JMESPathParser struct in NewJMESPathParser
+	result, err := jmespath.Search(jm.query, data)
+	if err == nil {
+		lbs.add = append(lbs.add, labels.Label{Name: jm.identifier, Value: fmt.Sprintf("%v", result)})
+	}
+
 	return line, true
 }
 
@@ -155,6 +189,7 @@ func (j *JSONParser) parseLabelValue(iter *jsoniter.Iterator, prefix, field stri
 }
 
 func (j *JSONParser) RequiredLabelNames() []string { return []string{} }
+func (j *JMESPathParser) RequiredLabelNames() []string { return []string{} }
 
 func readValue(iter *jsoniter.Iterator) string {
 	switch iter.WhatIsNext() {

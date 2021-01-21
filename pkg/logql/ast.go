@@ -309,10 +309,25 @@ type labelParserExpr struct {
 	implicit
 }
 
+type jmesPathParserExpr struct {
+	op    string
+	identifier string
+	query string
+	implicit
+}
+
 func newLabelParserExpr(op, param string) *labelParserExpr {
 	return &labelParserExpr{
 		op:    op,
 		param: param,
+	}
+}
+
+func newJMESPathParserExpr(op, identifier, query string) *jmesPathParserExpr {
+	return &jmesPathParserExpr{
+		op:    op,
+		identifier: identifier,
+		query: query,
 	}
 }
 
@@ -331,6 +346,15 @@ func (e *labelParserExpr) Stage() (log.Stage, error) {
 	}
 }
 
+func (e *jmesPathParserExpr) Stage() (log.Stage, error) {
+	switch e.op {
+	case OpParserTypeJMESPath:
+		return log.NewJMESPathParser(e.identifier, e.query), nil
+	default:
+		return nil, fmt.Errorf("unknown parser operator: %s", e.op)
+	}
+}
+
 func (e *labelParserExpr) String() string {
 	var sb strings.Builder
 	sb.WriteString(OpPipe)
@@ -340,6 +364,15 @@ func (e *labelParserExpr) String() string {
 		sb.WriteString(" ")
 		sb.WriteString(strconv.Quote(e.param))
 	}
+	return sb.String()
+}
+
+func (e *jmesPathParserExpr) String() string {
+	var sb strings.Builder
+	sb.WriteString(OpPipe)
+	sb.WriteString(" ")
+	sb.WriteString(e.op)
+	sb.WriteString(fmt.Sprintf("(%s, %s)", e.identifier, strconv.Quote(e.query)))
 	return sb.String()
 }
 
@@ -537,6 +570,7 @@ const (
 
 	// parsers
 	OpParserTypeJSON   = "json"
+	OpParserTypeJMESPath = "jmespath"
 	OpParserTypeLogfmt = "logfmt"
 	OpParserTypeRegexp = "regexp"
 
