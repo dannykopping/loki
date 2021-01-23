@@ -309,25 +309,10 @@ type labelParserExpr struct {
 	implicit
 }
 
-type jmesPathParserExpr struct {
-	op    string
-	identifier string
-	query string
-	implicit
-}
-
 func newLabelParserExpr(op, param string) *labelParserExpr {
 	return &labelParserExpr{
 		op:    op,
 		param: param,
-	}
-}
-
-func newJMESPathParserExpr(op, identifier, query string) *jmesPathParserExpr {
-	return &jmesPathParserExpr{
-		op:    op,
-		identifier: identifier,
-		query: query,
 	}
 }
 
@@ -346,17 +331,6 @@ func (e *labelParserExpr) Stage() (log.Stage, error) {
 	}
 }
 
-func (jm *jmesPathParserExpr) Shardable() bool { return true }
-
-func (jm *jmesPathParserExpr) Stage() (log.Stage, error) {
-	switch jm.op {
-	case OpParserTypeJSON:
-		return log.NewJMESPathParser(jm.identifier, jm.query), nil
-	default:
-		return nil, fmt.Errorf("unknown parser operator: %s", jm.op)
-	}
-}
-
 func (e *labelParserExpr) String() string {
 	var sb strings.Builder
 	sb.WriteString(OpPipe)
@@ -367,6 +341,32 @@ func (e *labelParserExpr) String() string {
 		sb.WriteString(strconv.Quote(e.param))
 	}
 	return sb.String()
+}
+
+type jmesPathParserExpr struct {
+	op    string
+	identifier string
+	query string
+	implicit
+}
+
+func newJMESPathParserExpr(op, identifier, query string) *jmesPathParserExpr {
+	return &jmesPathParserExpr{
+		op:    op,
+		identifier: identifier,
+		query: query,
+	}
+}
+
+func (jm *jmesPathParserExpr) Shardable() bool { return true }
+
+func (jm *jmesPathParserExpr) Stage() (log.Stage, error) {
+	switch jm.op {
+	case OpParserTypeJSON:
+		return log.NewJMESPathParser(jm.identifier, jm.query), nil
+	default:
+		return nil, fmt.Errorf("unknown parser operator: %s", jm.op)
+	}
 }
 
 func (jm *jmesPathParserExpr) String() string {

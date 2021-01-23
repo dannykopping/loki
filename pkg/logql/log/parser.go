@@ -34,33 +34,10 @@ type JSONParser struct {
 	lbs *LabelsBuilder
 }
 
-type JMESPathParser struct {
-	buf []byte // buffer used to build json keys
-
-	identifier string
-	query string
-	jmesPath *jmespath.JMESPath
-
-	lbs *LabelsBuilder
-}
-
 // NewJSONParser creates a log stage that can parse a json log line and add properties as labels.
 func NewJSONParser() *JSONParser {
 	return &JSONParser{
 		buf: make([]byte, 0, 1024),
-	}
-}
-
-// NewJMESPathParser creates a log stage that can query a json log line using JMESPath
-func NewJMESPathParser(identifier, query string) *JMESPathParser {
-	// suppress error here, check for nil pointer in execution
-	jmesPath, _  := jmespath.Compile(query)
-
-	return &JMESPathParser{
-		buf: make([]byte, 0, 1024),
-		identifier: identifier,
-		query: query,
-		jmesPath: jmesPath,
 	}
 }
 
@@ -77,37 +54,6 @@ func (j *JSONParser) Process(line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 		return line, true
 	}
 	return line, true
-}
-
-func (jm *JMESPathParser) Process(line []byte, lbs *LabelsBuilder) ([]byte, bool) {
-	label := jm.extractLabelFromLine(line)
-	if label != nil {
-		lbs.add = append(lbs.add, *label)
-	}
-
-	return line, true
-}
-
-func (jm *JMESPathParser) extractLabelFromLine(line []byte) *labels.Label {
-	if jm.jmesPath == nil {
-		// if no jmespath could be compiled, bail out
-		return nil
-	}
-
-	var data interface{}
-	var json = jsoniter.ConfigCompatibleWithStandardLibrary
-
-	err := json.Unmarshal(line, &data)
-	if err != nil {
-		return nil
-	}
-
-	result, err := jm.jmesPath.Search(data)
-	if err != nil || result == nil {
-		return nil
-	}
-
-	return &labels.Label{Name: jm.identifier, Value: fmt.Sprintf("%v", result)}
 }
 
 func (j *JSONParser) readObject(it *jsoniter.Iterator) error {
@@ -210,7 +156,6 @@ func (j *JSONParser) parseLabelValue(iter *jsoniter.Iterator, prefix, field stri
 }
 
 func (j *JSONParser) RequiredLabelNames() []string { return []string{} }
-func (j *JMESPathParser) RequiredLabelNames() []string { return []string{} }
 
 func readValue(iter *jsoniter.Iterator) string {
 	switch iter.WhatIsNext() {
@@ -248,6 +193,62 @@ func addLabel(lbs *LabelsBuilder, key, value string) {
 	}
 	lbs.Set(key, value)
 }
+
+type JMESPathParser struct {
+	buf []byte // buffer used to build json keys
+
+	identifier string
+	query string
+	jmesPath *jmespath.JMESPath
+
+	lbs *LabelsBuilder
+}
+
+// NewJMESPathParser creates a log stage that can query a json log line using JMESPath
+func NewJMESPathParser(identifier, query string) *JMESPathParser {
+	// suppress error here, check for nil pointer in execution
+	jmesPath, _  := jmespath.Compile(query)
+
+	return &JMESPathParser{
+		buf: make([]byte, 0, 1024),
+		identifier: identifier,
+		query: query,
+		jmesPath: jmesPath,
+	}
+}
+
+func (jp *JMESPathParser) Process(line []byte, lbs *LabelsBuilder) ([]byte, bool) {
+	label := jp.extractLabelFromLine(line)
+	if label != nil {
+		lbs.add = append(lbs.add, *label)
+	}
+
+	return line, true
+}
+
+func (jp *JMESPathParser) extractLabelFromLine(line []byte) *labels.Label {
+	if jp.jmesPath == nil {
+		// if no jmespath could be compiled, bail out
+		return nil
+	}
+
+	var data interface{}
+	var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
+	err := json.Unmarshal(line, &data)
+	if err != nil {
+		return nil
+	}
+
+	result, err := jp.jmesPath.Search(data)
+	if err != nil || result == nil {
+		return nil
+	}
+
+	return &labels.Label{Name: jp.identifier, Value: fmt.Sprintf("%v", result)}
+}
+
+func (jp *JMESPathParser) RequiredLabelNames() []string { return []string{} }
 
 type RegexpParser struct {
 	regex     *regexp.Regexp
