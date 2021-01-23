@@ -346,12 +346,14 @@ func (e *labelParserExpr) Stage() (log.Stage, error) {
 	}
 }
 
-func (e *jmesPathParserExpr) Stage() (log.Stage, error) {
-	switch e.op {
-	case OpParserTypeJMESPath:
-		return log.NewJMESPathParser(e.identifier, e.query), nil
+func (jm *jmesPathParserExpr) Shardable() bool { return true }
+
+func (jm *jmesPathParserExpr) Stage() (log.Stage, error) {
+	switch jm.op {
+	case OpParserTypeJSON:
+		return log.NewJMESPathParser(jm.identifier, jm.query), nil
 	default:
-		return nil, fmt.Errorf("unknown parser operator: %s", e.op)
+		return nil, fmt.Errorf("unknown parser operator: %s", jm.op)
 	}
 }
 
@@ -367,12 +369,12 @@ func (e *labelParserExpr) String() string {
 	return sb.String()
 }
 
-func (e *jmesPathParserExpr) String() string {
+func (jm *jmesPathParserExpr) String() string {
 	var sb strings.Builder
 	sb.WriteString(OpPipe)
 	sb.WriteString(" ")
-	sb.WriteString(e.op)
-	sb.WriteString(fmt.Sprintf("(%s, %s)", e.identifier, strconv.Quote(e.query)))
+	sb.WriteString(jm.op)
+	sb.WriteString(fmt.Sprintf("(%s, %s)", jm.identifier, strconv.Quote(jm.query)))
 	return sb.String()
 }
 
@@ -570,7 +572,6 @@ const (
 
 	// parsers
 	OpParserTypeJSON   = "json"
-	OpParserTypeJMESPath = "jmespath"
 	OpParserTypeLogfmt = "logfmt"
 	OpParserTypeRegexp = "regexp"
 

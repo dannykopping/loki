@@ -52,7 +52,6 @@ var tokens = map[string]int{
 
 	// parsers
 	OpParserTypeJSON:     JSON,
-	OpParserTypeJMESPath: JMESPATH,
 	OpParserTypeRegexp:   REGEXP,
 	OpParserTypeLogfmt:   LOGFMT,
 

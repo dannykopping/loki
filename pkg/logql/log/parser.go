@@ -3,13 +3,12 @@ package log
 import (
 	"errors"
 	"fmt"
+	"github.com/grafana/loki/pkg/logql/log/logfmt"
 	"github.com/jmespath/go-jmespath"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"io"
 	"regexp"
 	"strings"
-
-	"github.com/grafana/loki/pkg/logql/log/logfmt"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/prometheus/common/model"
@@ -36,9 +35,12 @@ type JSONParser struct {
 }
 
 type JMESPathParser struct {
+	buf []byte // buffer used to build json keys
+
 	identifier string
 	query string
-	buf []byte // buffer used to build json keys
+	jmesPath *jmespath.JMESPath
+
 	lbs *LabelsBuilder
 }
 
@@ -51,10 +53,14 @@ func NewJSONParser() *JSONParser {
 
 // NewJMESPathParser creates a log stage that can query a json log line using JMESPath
 func NewJMESPathParser(identifier, query string) *JMESPathParser {
+	// suppress error here, check for nil pointer in execution
+	jmesPath, _  := jmespath.Compile(query)
+
 	return &JMESPathParser{
 		buf: make([]byte, 0, 1024),
 		identifier: identifier,
 		query: query,
+		jmesPath: jmesPath,
 	}
 }
 
@@ -74,19 +80,34 @@ func (j *JSONParser) Process(line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 }
 
 func (jm *JMESPathParser) Process(line []byte, lbs *LabelsBuilder) ([]byte, bool) {
-	var data interface{}
-	err := jsoniter.Unmarshal(line, &data)
-	if err != nil {
-		return line, true
-	}
-
-	// TODO compile ahead of time to improve perf, add to JMESPathParser struct in NewJMESPathParser
-	result, err := jmespath.Search(jm.query, data)
-	if err == nil {
-		lbs.add = append(lbs.add, labels.Label{Name: jm.identifier, Value: fmt.Sprintf("%v", result)})
+	label := jm.extractLabelFromLine(line)
+	if label != nil {
+		lbs.add = append(lbs.add, *label)
 	}
 
 	return line, true
+}
+
+func (jm *JMESPathParser) extractLabelFromLine(line []byte) *labels.Label {
+	if jm.jmesPath == nil {
+		// if no jmespath could be compiled, bail out
+		return nil
+	}
+
+	var data interface{}
+	var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
+	err := json.Unmarshal(line, &data)
+	if err != nil {
+		return nil
+	}
+
+	result, err := jm.jmesPath.Search(data)
+	if err != nil || result == nil {
+		return nil
+	}
+
+	return &labels.Label{Name: jm.identifier, Value: fmt.Sprintf("%v", result)}
 }
 
 func (j *JSONParser) readObject(it *jsoniter.Iterator) error {
