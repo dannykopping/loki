@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"github.com/grafana/loki/pkg/logql/log/logfmt"
 	"github.com/jmespath/go-jmespath"
-	"github.com/prometheus/prometheus/pkg/labels"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/prometheus/common/model"
 	"io"
 	"regexp"
 	"strings"
-
-	jsoniter "github.com/json-iterator/go"
-	"github.com/prometheus/common/model"
 )
 
 const (
@@ -195,8 +193,6 @@ func addLabel(lbs *LabelsBuilder, key, value string) {
 }
 
 type JMESPathParser struct {
-	buf []byte // buffer used to build json keys
-
 	identifier string
 	query string
 	jmesPath *jmespath.JMESPath
@@ -210,7 +206,6 @@ func NewJMESPathParser(identifier, query string) *JMESPathParser {
 	jmesPath, _  := jmespath.Compile(query)
 
 	return &JMESPathParser{
-		buf: make([]byte, 0, 1024),
 		identifier: identifier,
 		query: query,
 		jmesPath: jmesPath,
@@ -219,33 +214,31 @@ func NewJMESPathParser(identifier, query string) *JMESPathParser {
 
 func (jp *JMESPathParser) Process(line []byte, lbs *LabelsBuilder) ([]byte, bool) {
 	label := jp.extractLabelFromLine(line)
-	if label != nil {
-		lbs.add = append(lbs.add, *label)
+	if label != "" {
+		lbs.Set(jp.identifier, label)
 	}
 
 	return line, true
 }
 
-func (jp *JMESPathParser) extractLabelFromLine(line []byte) *labels.Label {
+func (jp *JMESPathParser) extractLabelFromLine(line []byte) string {
 	if jp.jmesPath == nil {
 		// if no jmespath could be compiled, bail out
-		return nil
+		return ""
 	}
 
 	var data interface{}
-	var json = jsoniter.ConfigCompatibleWithStandardLibrary
-
-	err := json.Unmarshal(line, &data)
+	err := jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(line, &data)
 	if err != nil {
-		return nil
+		return ""
 	}
 
 	result, err := jp.jmesPath.Search(data)
 	if err != nil || result == nil {
-		return nil
+		return ""
 	}
 
-	return &labels.Label{Name: jp.identifier, Value: fmt.Sprintf("%v", result)}
+	return fmt.Sprintf("%v", result)
 }
 
 func (jp *JMESPathParser) RequiredLabelNames() []string { return []string{} }
