@@ -27,6 +27,9 @@ const (
 	// PushTargetType is a Loki push target
 	PushTargetType = TargetType("Push")
 
+	// ExporterTargetType is a target where logs are created from exporter metrics.
+	ExporterTargetType = TargetType("Exporter")
+
 	// WindowsTargetType is a Windows event target
 	WindowsTargetType = TargetType("WindowsEvent")
 )

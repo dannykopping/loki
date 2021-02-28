@@ -35,6 +35,7 @@ type Config struct {
 	GcplogConfig           *GcplogTargetConfig        `yaml:"gcplog,omitempty"`
 	PushConfig             *PushTargetConfig          `yaml:"loki_push_api,omitempty"`
 	WindowsConfig          *WindowsEventsTargetConfig `yaml:"windows_events,omitempty"`
+	ExporterConfig         *ExporterTargetConfig      `yaml:"exporter,omitempty"`
 	RelabelConfigs         []*relabel.Config          `yaml:"relabel_configs,omitempty"`
 	ServiceDiscoveryConfig ServiceDiscoveryConfig     `yaml:",inline"`
 }
@@ -224,6 +225,30 @@ type GcplogTargetConfig struct {
 	// current timestamp at the time of processing.
 	// Its default value(`false`) denotes, replace it with current timestamp at the time of processing.
 	UseIncomingTimestamp bool `yaml:"use_incoming_timestamp"`
+}
+
+// ExporterTargetConfig describes a scrape config to create logs from a Prometheus exporter.
+type ExporterTargetConfig struct {
+	// Host is the host on which the exporter runs.
+	Host string `yaml:"host"`
+
+	// Port is the port which is exposed by the exporter.
+	Port string `yaml:"port"`
+
+	// MetricsPath is the path from which metrics are exposed by the exporter.
+	MetricsPath string `yaml:"metrics_path"`
+
+	// ScrapeInterval is the interval between which a scrape should be performed.
+	ScrapeInterval time.Duration `yaml:"scrape_interval"`
+
+	// ScrapeTimeout defines the maximum time to request data from an exporter before giving up.
+	ScrapeTimeout time.Duration `yaml:"timeout"`
+
+	// MetricName is the label identifier to use for the metric.
+	MetricName string `yaml:"metric_name"`
+
+	// ValueName is the label identifier to use for the metric value.
+	ValueName string `yaml:"value_name"`
 }
 
 // PushTargetConfig describes a scrape config that listens for Loki push messages.

@@ -3,6 +3,7 @@ package targets
 import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/grafana/loki/pkg/promtail/targets/exporter"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -20,12 +21,13 @@ import (
 )
 
 const (
-	FileScrapeConfigs    = "fileScrapeConfigs"
-	JournalScrapeConfigs = "journalScrapeConfigs"
-	SyslogScrapeConfigs  = "syslogScrapeConfigs"
-	GcplogScrapeConfigs  = "gcplogScrapeConfigs"
-	PushScrapeConfigs    = "pushScrapeConfigs"
-	WindowsEventsConfigs = "windowsEventsConfigs"
+	FileScrapeConfigs     = "fileScrapeConfigs"
+	JournalScrapeConfigs  = "journalScrapeConfigs"
+	SyslogScrapeConfigs   = "syslogScrapeConfigs"
+	GcplogScrapeConfigs   = "gcplogScrapeConfigs"
+	PushScrapeConfigs     = "pushScrapeConfigs"
+	ExporterScrapeConfigs = "exporterScrapeConfigs"
+	WindowsEventsConfigs  = "windowsEventsConfigs"
 )
 
 type targetManager interface {
@@ -78,6 +80,8 @@ func NewTargetManagers(
 			targetScrapeConfigs[PushScrapeConfigs] = append(targetScrapeConfigs[PushScrapeConfigs], cfg)
 		case cfg.WindowsConfig != nil:
 			targetScrapeConfigs[WindowsEventsConfigs] = append(targetScrapeConfigs[WindowsEventsConfigs], cfg)
+		case cfg.ExporterConfig != nil:
+			targetScrapeConfigs[ExporterScrapeConfigs] = append(targetScrapeConfigs[ExporterScrapeConfigs], cfg)
 
 		default:
 			return nil, errors.New("unknown scrape config")
@@ -167,7 +171,7 @@ func NewTargetManagers(
 				scrapeConfigs,
 			)
 			if err != nil {
-				return nil, errors.Wrap(err, "failed to make syslog target manager")
+				return nil, errors.Wrap(err, "failed to make gcplog target manager")
 			}
 			targetManagers = append(targetManagers, pubsubTargetManager)
 		case PushScrapeConfigs:
@@ -181,6 +185,17 @@ func NewTargetManagers(
 				return nil, errors.Wrap(err, "failed to make Loki Push API target manager")
 			}
 			targetManagers = append(targetManagers, pushTargetManager)
+		case ExporterScrapeConfigs:
+			exporterTargetManager, err := exporter.NewExporterTargetManager(
+				reg,
+				logger,
+				client,
+				scrapeConfigs,
+			)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to make exporter target manager")
+			}
+			targetManagers = append(targetManagers, exporterTargetManager)
 		case WindowsEventsConfigs:
 			windowsTargetManager, err := windows.NewTargetManager(reg, logger, client, scrapeConfigs)
 			if err != nil {
